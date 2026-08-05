@@ -90,6 +90,8 @@ human-writing/
 │   └── revision.md
 └── scripts/
     └── check_prose.py
+tests/
+└── test_check_prose.py
 ```
 
 | 位置 | 用途 |
@@ -103,6 +105,14 @@ human-writing/
 | [`check_prose.py`](./human-writing/scripts/check_prose.py) | 检查成稿是否命中明确禁用项 |
 
 </details>
+
+## 开发与验证
+
+检查脚本只使用 Python 标准库。在仓库根目录运行下面的命令，可以验证干净稿通过、违禁稿失败，以及代码和网址不被误报。
+
+```bash
+python3 -m unittest discover -s tests -v
+```
 
 ## 开源与反馈
 
