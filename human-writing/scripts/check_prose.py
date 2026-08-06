@@ -12,7 +12,6 @@ from pathlib import Path
 
 
 HARD_STOPS = (
-    "不丢",
     "说白了",
     "说穿了",
     "先说结论",
@@ -23,9 +22,7 @@ HARD_JARGON = (
     "抓手",
     "商业闭环",
     "价值闭环",
-    "闭环",
     "能力沉淀",
-    "打法",
     "拉通",
     "底层逻辑",
     "顶层设计",
@@ -37,7 +34,6 @@ HARD_JARGON = (
     "全链路",
     "组合拳",
     "打开想象空间",
-    "想象空间",
     "结构性机会",
     "关键命题",
     "深层逻辑",
@@ -62,6 +58,22 @@ CONTEXT_JARGON = (
     "范式",
     "方法论",
     "核心变量",
+    "打法",
+    "想象空间",
+    "闭环",
+    "不丢",
+)
+
+LYRIC_WORDS = (
+    "安放",
+    "抵达",
+    "微光",
+    "褶皱",
+    "丰盈",
+    "滚烫",
+    "轻盈",
+    "赤裸",
+    "剥开",
 )
 
 ROAD_SIGNS = (
@@ -86,10 +98,45 @@ PIVOT_PATTERNS = (
     re.compile(r"(?:并)?不是[^。！？\n]{0,90}而是"),
     re.compile(r"并非[^。！？\n]{0,90}而是"),
     re.compile(r"不在于[^。！？\n]{0,90}而在于"),
-    re.compile(r"与其说[^。！？\n]{0,90}不如说"),
-    re.compile(r"不只(?:是)?[^。！？\n]{0,90}(?:还|也)"),
+    re.compile(r"与其说[^。！？\n]{0,90}(?:不如|毋宁|倒不如)"),
+    re.compile(r"[。！？!?]\s*而是"),
     re.compile(r"表面(?:上)?[^。！？\n]{0,90}(?:其实|实际|实则)"),
     re.compile(r"看似[^。！？\n]{0,90}(?:其实|实际|实则)"),
+)
+
+SEMANTIC_PIVOT_PATTERNS = (
+    re.compile(r"(?:总|一直|曾|都)?以为[^！？\n]{2,60}?(?:其实|才发现|才明白|才知道|后来才)"),
+    re.compile(r"(?:总|都|一直)以为[^！？\n]{2,60}?[。，](?:可|但|其实)"),
+    re.compile(r"回头(?:看|一看)?才(?:发现|明白|知道)"),
+    re.compile(r"(?:并)?不是[^。！？\n]{1,40}，(?:更|才)?是[^，。！？\n]"),
+    re.compile(r"从来(?:都)?(?:不是|与[^。！？，\n]{1,12}无关)"),
+    re.compile(r"答案(?:是否定的|恰恰相反)|恰恰相反"),
+    re.compile(r"表面(?:上)?[^！？\n]{0,60}。[^！？\n]{0,12}(?:其实|实际|实则)"),
+    re.compile(r"看似[^！？\n]{0,60}。[^！？\n]{0,12}(?:其实|实际|实则)"),
+    re.compile(r"[^，。！？\n]{1,12}不重要，(?:重要|要紧)的是"),
+    re.compile(r"真正[^，。！？\n]{0,16}的(?:，)?是"),
+    re.compile(r"不只(?:是)?[^。！？\n]{0,90}(?:还|也)"),
+)
+
+NOMINALIZATION_PATTERNS = (
+    re.compile(r"进行(?:了|一次|一场|着)?[^。，！？\n]{0,10}(?:调整|优化|升级|分析|讨论|沟通|梳理|复盘|迭代|探索|尝试|思考|规划|布局)"),
+    re.compile(r"实现了?[^。，！？\n]{0,14}的?[^。，！？\n]{0,6}(?:提升|增长|突破|转变|跃升|落地)"),
+    re.compile(r"完成了?对[^。，！？\n]{0,16}的"),
+    re.compile(r"起到了?[^。，！？\n]{0,12}的?作用"),
+    re.compile(r"具有[^。，！？\n]{0,10}(?:意义|价值)"),
+)
+
+CONJUNCTIONS = (
+    "因为",
+    "所以",
+    "但是",
+    "然而",
+    "同时",
+    "此外",
+    "而且",
+    "并且",
+    "因此",
+    "不仅",
 )
 
 ROAD_SIGN_PATTERNS = (
@@ -226,6 +273,53 @@ def heavy_de_sentences(text: str):
     return matches
 
 
+def anaphora_runs(text: str, minimum: int = 3):
+    """找出同一句里三个以上小句用同一个开头的排比。"""
+
+    matches = []
+    for sentence in re.finditer(r"[^。！？!?\n]+(?:[。！？!?]|$)", text):
+        clauses = [
+            clause.strip()
+            for clause in re.split(r"[，、；,;]", sentence.group())
+            if han_count(clause) >= 3
+        ]
+        if len(clauses) < minimum:
+            continue
+        run = 1
+        for previous, current in zip(clauses, clauses[1:]):
+            if previous[:2] == current[:2] and re.match(r"[一-鿿]{2}", current):
+                run += 1
+                if run >= minimum:
+                    matches.append(sentence)
+                    break
+            else:
+                run = 1
+    return matches
+
+
+def sentence_length_cv(text: str):
+    """句长变异系数。人写的长短句差距大，模型的句长彼此接近。"""
+
+    lengths = [
+        han_count(match.group())
+        for match in re.finditer(r"[^。！？!?\n]+[。！？!?]", text)
+        if han_count(match.group()) >= 4
+    ]
+    if len(lengths) < 12:
+        return None
+    mean = sum(lengths) / len(lengths)
+    if mean == 0:
+        return None
+    variance = sum((value - mean) ** 2 for value in lengths) / len(lengths)
+    return (variance ** 0.5) / mean, len(lengths)
+
+
+def bracket_highlights(text: str):
+    """「」括起来的短语。太密说明在批量造金句。"""
+
+    return list(re.finditer(r"[「『][^」』\n]{1,6}[」』]", text))
+
+
 def prose_paragraphs(text: str) -> list[Paragraph]:
     paragraphs = []
     cursor = 0
@@ -311,11 +405,28 @@ def main() -> int:
     failures = []
     warnings = []
 
+    quote_colons = []
     for symbol, label in FORBIDDEN_PUNCTUATION.items():
         matches = list(re.finditer(re.escape(symbol), prose))
+        if symbol in ("：", ":"):
+            hard = []
+            for match in matches:
+                tail = prose[match.end() : match.end() + 2].lstrip()
+                if tail[:1] in ("「", "『", "“", "‘", '"'):
+                    quote_colons.append(match)
+                else:
+                    hard.append(match)
+            matches = hard
         if matches:
             lines = "、".join(str(line_number(text, match.start())) for match in matches[:8])
             failures.append(f"{label}共 {len(matches)} 处，出现在第 {lines} 行。")
+    if quote_colons:
+        lines = "、".join(
+            str(line_number(text, match.start())) for match in quote_colons[:8]
+        )
+        warnings.append(
+            f"引出原话的冒号 {len(quote_colons)} 处，第 {lines} 行。确认引号里确实是原话，且不是提示性用法。"
+        )
 
     stop_matches = non_overlapping_terms(prose, HARD_STOPS)
     for position, phrase in stop_matches:
@@ -364,6 +475,72 @@ def main() -> int:
         failures.append(
             f"禁用翻案句，第 {line_number(text, match.start())} 行，"
             f"“{excerpt(match.group())}”"
+        )
+
+    occupied_spans = [match.span() for match in pivots]
+    semantic_pivots = []
+    for match in all_matches(prose, SEMANTIC_PIVOT_PATTERNS):
+        if any(
+            match.start() < end and match.end() > start
+            for start, end in occupied_spans
+        ):
+            continue
+        semantic_pivots.append(match)
+        occupied_spans.append(match.span())
+    for match in semantic_pivots:
+        warnings.append(
+            f"疑似翻案腔变形，第 {line_number(text, match.start())} 行，"
+            f"“{excerpt(match.group(), 44)}”。先立误解再推翻就改成正面陈述，正常用法保留。"
+        )
+
+    anaphoras = anaphora_runs(prose)
+    for match in anaphoras[:4]:
+        warnings.append(
+            f"三连以上同构排比，第 {line_number(text, match.start())} 行，"
+            f"“{excerpt(match.group(), 44)}”。留两项，第三项换说法或删掉。"
+        )
+
+    lyric_matches = non_overlapping_terms(prose, LYRIC_WORDS)
+    if len(lyric_matches) >= 2:
+        samples = "、".join(dict.fromkeys(term for _, term in lyric_matches))
+        warnings.append(
+            f"模型偏爱的抒情词 {len(lyric_matches)} 处。{samples}。"
+            "写具体事物时保留，给抽象概念穿衣服时删掉。"
+        )
+
+    nominalizations = all_matches(prose, NOMINALIZATION_PATTERNS)
+    for match in nominalizations[:4]:
+        warnings.append(
+            f"名词化句式，第 {line_number(text, match.start())} 行，"
+            f"“{excerpt(match.group(), 36)}”。还原成直接的动词。"
+        )
+
+    conjunction_hits = non_overlapping_terms(prose, CONJUNCTIONS)
+    if total_han >= 600 and len(conjunction_hits) * 1000 / total_han > 7:
+        samples = "、".join(
+            f"{term} {count} 次"
+            for term, count in collections.Counter(
+                term for _, term in conjunction_hits
+            ).most_common(4)
+        )
+        warnings.append(
+            f"连词密度偏高，每千字 {len(conjunction_hits) * 1000 // total_han} 个。{samples}。"
+            "中文小句靠语序和事理相接，删掉一半试试。"
+        )
+
+    highlights = bracket_highlights(prose)
+    highlight_limit = max(3, total_han // 700)
+    if len(highlights) > highlight_limit:
+        samples = "、".join(dict.fromkeys(match.group() for match in highlights[:6]))
+        warnings.append(
+            f"「」括起的短语共 {len(highlights)} 处。{samples}。太密说明在批量造金句。"
+        )
+
+    cv_result = sentence_length_cv(prose)
+    if cv_result and cv_result[0] < 0.42:
+        warnings.append(
+            f"全文 {cv_result[1]} 个句子长度过于接近（变异系数 {cv_result[0]:.2f}）。"
+            "人写的段落里十个字的句子会挨着四十个字的句子，放开几句，压短几句。"
         )
 
     marker_matches = non_overlapping_terms(prose, SOFT_MARKERS)
@@ -434,9 +611,11 @@ def main() -> int:
 
     print(f"汉字数 {total_han}")
     print(
-        f"翻案句 {len(pivots)}，黑话 {len(jargon_matches)}，"
-        f"硬停词 {len(stop_matches)}，模型路标 {len(road_signs)}，"
-        f"需辨语境词 {len(context_jargon_matches)}，洞察路标 {len(marker_matches)}，"
+        f"翻案句 {len(pivots)}，翻案腔变形 {len(semantic_pivots)}，"
+        f"同构排比 {len(anaphoras)}，名词化 {len(nominalizations)}，"
+        f"黑话 {len(jargon_matches)}，硬停词 {len(stop_matches)}，"
+        f"模型路标 {len(road_signs)}，需辨语境词 {len(context_jargon_matches)}，"
+        f"抒情词 {len(lyric_matches)}，洞察路标 {len(marker_matches)}，"
         f"长前置成分 {len(left_branches)}，重定语句 {len(dense_de)}"
     )
 
