@@ -13,6 +13,7 @@
   <a href="#它做什么">写作流程</a> ·
   <a href="#仓库结构">仓库结构</a> ·
   <a href="https://github.com/KKKKhazix/human-writing/issues">提交问题</a>
+  <a href="./README_en.md">English</a>
 </p>
 
 > AI 写中文有个通病：读完觉得挺流畅，但说不出是谁写的。活人感写作想治的就是这件事。

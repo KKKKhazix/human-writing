@@ -1,0 +1,4 @@
+interface:
+  display_name: "Human-Voice Writing"
+  short_description: "Write realistic articles, stories, and other works with a genuine human voice and natural English rhythm"
+  default_prompt: "Use $human-writing to turn my material into a piece with human voice and natural English rhythm — grounded in real facts, with fiction that holds together."
