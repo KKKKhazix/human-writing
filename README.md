@@ -90,6 +90,8 @@ human-writing/
 │   └── revision.md
 └── scripts/
     └── check_prose.py
+tests/
+└── test_check_prose.py
 ```
 
 | 位置 | 干什么的 |
@@ -104,6 +106,8 @@ human-writing/
 | [`human-writing-lite.md`](./human-writing/dist/human-writing-lite.md) | 蒸馏版，两千字以内，聊天窗口直接粘贴用 |
 
 </details>
+
+开发时可在仓库根目录运行 `python3 -m unittest discover -s tests -v`，验证检查脚本的通过、拦截和误报边界。
 
 ## 反馈
 
