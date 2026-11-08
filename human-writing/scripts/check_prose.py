@@ -83,7 +83,20 @@ ROAD_SIGNS = (
     "值得注意的是",
     "需要指出的是",
     "从某种意义上说",
+    "总而言之",
+    "综上所述",
 )
+
+# 模板化的开场与收尾。规则见 SKILL.md“不要在末段重新摘要全文”与 revision.md 第七遍。
+TEMPLATE_FRAME_PATTERNS = (
+    (re.compile(r"在当今[^，。！？\n]{0,16}(?:时代|社会|世界)?"), "时代套话开头"),
+    (re.compile(r"在这个[^，。！？\n]{0,16}的(?:时代|年代)"), "时代套话开头"),
+    (re.compile(r"众所周知"), "时代套话开头"),
+    (re.compile(r"让我们(?:一起)?[^。！？\n]{0,30}吧"), "号召式结尾"),
+)
+
+ENUMERATION_FIRST = re.compile(r"(?:^|[。！？；，\s])首先[，,]?")
+ENUMERATION_REST = re.compile(r"(?:^|[。！？；，\s])(?:其次|再次|最后)[，,]?")
 
 ROAD_STRIP_CHARS = "。！？!? \n"
 
@@ -96,6 +109,7 @@ FORBIDDEN_PUNCTUATION = {
 
 PIVOT_PATTERNS = (
     re.compile(r"(?:并)?不是[^。！？\n]{0,90}而是"),
+    re.compile(r"不(?:仅仅|仅|只|单)是[^。！？\n]{0,90}而是"),
     re.compile(r"并非[^。！？\n]{0,90}而是"),
     re.compile(r"不在于[^。！？\n]{0,90}而在于"),
     re.compile(r"与其说[^。！？\n]{0,90}(?:不如|毋宁|倒不如)"),
@@ -214,6 +228,13 @@ def han_count(text: str) -> int:
 
 def line_number(text: str, position: int) -> int:
     return text.count("\n", 0, position) + 1
+
+
+def content_start(match: re.Match[str]) -> int:
+    """跳过模式前面吃进的句末标点和换行，返回正文真正开始的位置。"""
+
+    value = match.group()
+    return match.start() + len(value) - len(value.lstrip(ROAD_STRIP_CHARS + "；，"))
 
 
 def excerpt(value: str, width: int = 72) -> str:
@@ -472,8 +493,30 @@ def main() -> int:
     road_signs = all_matches(prose, ROAD_SIGN_PATTERNS)
     for match in road_signs:
         failures.append(
-            f"模型路标，第 {line_number(text, match.start())} 行，"
+            f"模型路标，第 {line_number(text, content_start(match))} 行，"
             f"“{excerpt(match.group().lstrip(ROAD_STRIP_CHARS))}”"
+        )
+
+    template_frames = []
+    for pattern, label in TEMPLATE_FRAME_PATTERNS:
+        template_frames.extend((match, label) for match in pattern.finditer(prose))
+    template_frames.sort(key=lambda item: item[0].start())
+    for match, label in template_frames:
+        failures.append(
+            f"{label}，第 {line_number(text, match.start())} 行，“{excerpt(match.group(), 36)}”"
+        )
+
+    enumeration_first = list(ENUMERATION_FIRST.finditer(prose))
+    enumeration_rest = [
+        match
+        for match in ENUMERATION_REST.finditer(prose)
+        if enumeration_first and match.start() > enumeration_first[0].start()
+    ]
+    if enumeration_first and enumeration_rest:
+        warnings.append(
+            f"“首先……其次……最后”式提纲骨架，从第 "
+            f"{line_number(text, content_start(enumeration_first[0]))} 行开始。"
+            "把原因排成编号段落容易变成模型稿，改成按事情发生的顺序讲。"
         )
 
     pivots = all_matches(prose, PIVOT_PATTERNS)
@@ -562,7 +605,7 @@ def main() -> int:
     left_limit = max(2, total_han // 1200)
     if len(left_branches) > left_limit:
         samples = "；".join(
-            f"第 {line_number(text, match.start())} 行“{excerpt(match.group(), 44)}”"
+            f"第 {line_number(text, content_start(match))} 行“{excerpt(match.group(), 44)}”"
             for match in left_branches[:4]
         )
         warnings.append(
@@ -620,7 +663,7 @@ def main() -> int:
         f"翻案句 {len(pivots)}，翻案腔变形 {len(semantic_pivots)}，"
         f"同构排比 {len(anaphoras)}，名词化 {len(nominalizations)}，"
         f"黑话 {len(jargon_matches)}，硬停词 {len(stop_matches)}，"
-        f"模型路标 {len(road_signs)}，需辨语境词 {len(context_jargon_matches)}，"
+        f"模型路标 {len(road_signs)}，套话开头收尾 {len(template_frames)}，需辨语境词 {len(context_jargon_matches)}，"
         f"抒情词 {len(lyric_matches)}，洞察路标 {len(marker_matches)}，"
         f"长前置成分 {len(left_branches)}，重定语句 {len(dense_de)}"
     )
