@@ -87,12 +87,25 @@ ROAD_SIGNS = (
     "综上所述",
 )
 
-# 模板化的开场与收尾。规则见 SKILL.md“不要在末段重新摘要全文”与 revision.md 第七遍。
-TEMPLATE_FRAME_PATTERNS = (
-    (re.compile(r"在当今[^，。！？\n]{0,16}(?:时代|社会|世界)?"), "时代套话开头"),
-    (re.compile(r"在这个[^，。！？\n]{0,16}的(?:时代|年代)"), "时代套话开头"),
-    (re.compile(r"众所周知"), "时代套话开头"),
-    (re.compile(r"让我们(?:一起)?[^。！？\n]{0,30}吧"), "号召式结尾"),
+# 模板化的开场与收尾，规则见 SKILL.md「成稿绝对不能出现」。时代铺垫只查开篇第一段，
+# “众所周知”只查句首，“让我们……吧”只查末段引号外的句首。引号里的人物对白不算。
+SENTENCE_START = r"(?:^|(?<=[。！？!?]))[ \t]*"
+
+ERA_OPENER_PATTERNS = (
+    re.compile(SENTENCE_START + r"在当今[^，。！？\n]{0,16}(?:时代|社会|世界)", re.MULTILINE),
+    re.compile(SENTENCE_START + r"在这个[^，。！？\n]{0,16}的(?:时代|年代)", re.MULTILINE),
+)
+
+COMMON_OPENER_PATTERN = re.compile(SENTENCE_START + r"众所周知", re.MULTILINE)
+
+RALLY_CLOSE_PATTERN = re.compile(
+    SENTENCE_START + r"(?:[^，。！？\n]{1,6}，)?让我们[^。！？\n]{0,30}吧", re.MULTILINE
+)
+
+QUOTED_SPANS = re.compile(r"“[^”\n]*”|「[^」\n]*」|『[^』\n]*』|\"[^\"\n]*\"")
+
+TABLE_ALIGNMENT_ROW = re.compile(
+    r"^[ \t]*\|?(?:[ \t]*:?-{3,}:?[ \t]*\|)+[ \t]*(?::?-{3,}:?[ \t]*)?$", re.MULTILINE
 )
 
 ENUMERATION_FIRST = re.compile(r"(?:^|[。！？；，\s])首先[，,]?")
@@ -259,7 +272,9 @@ def mask_non_prose(text: str) -> str:
     masked = text
     for pattern in patterns:
         masked = pattern.sub(mask, masked)
-    return masked
+    # Markdown 表格的对齐行，比如 | :--- | :---: |，冒号是表格语法。只换掉冒号，
+    # 这一行不变成空行，表格也就不会被拆成两段。
+    return TABLE_ALIGNMENT_ROW.sub(lambda match: match.group().replace(":", "-"), masked)
 
 
 def non_overlapping_terms(text: str, terms: tuple[str, ...]):
@@ -358,6 +373,18 @@ def prose_paragraphs(text: str) -> list[Paragraph]:
         sentences = max(1, len(re.findall(r"[。！？!?]", clean)))
         paragraphs.append(Paragraph(position, clean, count, sentences))
     return paragraphs
+
+
+def prose_lines(text: str) -> list[tuple[int, int]]:
+    """正文行的起止位置，跳过标题、表格、图片和过短的行。用来找开篇和末段。"""
+
+    spans = []
+    for match in re.finditer(r"[^\n]+", text):
+        value = match.group().strip()
+        if value.startswith(("#", "|", "![")) or han_count(value) < 4:
+            continue
+        spans.append(match.span())
+    return spans
 
 
 def metaphor_cluster(text: str, distance: int = 800):
@@ -498,12 +525,28 @@ def main() -> int:
         )
 
     template_frames = []
-    for pattern, label in TEMPLATE_FRAME_PATTERNS:
-        template_frames.extend((match, label) for match in pattern.finditer(prose))
+    lines = prose_lines(prose)
+    if lines:
+        first_start, first_end = lines[0]
+        for pattern in ERA_OPENER_PATTERNS:
+            template_frames.extend(
+                (match, "时代套话开头")
+                for match in pattern.finditer(prose, first_start, first_end)
+            )
+        last_start, last_end = lines[-1]
+        unquoted = QUOTED_SPANS.sub(lambda match: " " * len(match.group()), prose)
+        template_frames.extend(
+            (match, "号召式结尾")
+            for match in RALLY_CLOSE_PATTERN.finditer(unquoted, last_start, last_end)
+        )
+    template_frames.extend(
+        (match, "套话开头") for match in COMMON_OPENER_PATTERN.finditer(prose)
+    )
     template_frames.sort(key=lambda item: item[0].start())
     for match, label in template_frames:
         failures.append(
-            f"{label}，第 {line_number(text, match.start())} 行，“{excerpt(match.group(), 36)}”"
+            f"{label}，第 {line_number(text, content_start(match))} 行，"
+            f"“{excerpt(match.group(), 36)}”"
         )
 
     enumeration_first = list(ENUMERATION_FIRST.finditer(prose))

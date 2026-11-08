@@ -1,0 +1,19 @@
+{
+  "name": "human-writing",
+  "description": "数字生命卡兹克开源的中文写作 Skill。",
+  "owner": {
+    "name": "KKKKhazix"
+  },
+  "plugins": [
+    {
+      "name": "human-writing",
+      "description": "活人感写作。让 AI 写的中文读起来像一个具体的人在说话，写作、改稿和去 AI 味都能用。",
+      "version": "1.2.0",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./human-writing"
+      ]
+    }
+  ]
+}
