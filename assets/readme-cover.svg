@@ -19,7 +19,7 @@
   <path d="M80 88 H362" stroke="#C4473A" stroke-width="3"/>
   <path d="M80 328 H810" stroke="#BEB2A3" stroke-width="1"/>
 
-  <text x="80" y="72" fill="#C4473A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700" letter-spacing="3">HUMAN WRITING · 1.0.0</text>
+  <text x="80" y="72" fill="#C4473A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700" letter-spacing="3">HUMAN WRITING</text>
   <text x="80" y="192" fill="url(#ink)" font-family="'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif" font-size="76" font-weight="700" letter-spacing="2">活人感写作</text>
   <text x="84" y="250" fill="#625D56" font-family="'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif" font-size="27">写事实，写行动，写得像一个人在说话</text>
 

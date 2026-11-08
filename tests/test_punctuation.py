@@ -32,6 +32,17 @@ class ColonTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("中文冒号共 1 处", out)
 
+    def test_markdown_table_alignment_row_is_not_a_colon(self):
+        code, out = check(
+            "| 材料 | 推进 |\n| :--- | :---: |\n| 先查材料够不够 | 每段带来新东西 |\n"
+        )
+        self.assertEqual(code, 0, out)
+
+    def test_colon_inside_table_cell_still_fails(self):
+        code, out = check("| 材料 | 推进 |\n| --- | --- |\n| 核心是：先查材料 | 每段带来新东西 |\n")
+        self.assertEqual(code, 1)
+        self.assertIn("中文冒号共 1 处", out)
+
 
 class DashTests(unittest.TestCase):
     def test_double_dash_counts_once(self):
