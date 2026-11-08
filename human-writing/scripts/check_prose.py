@@ -407,10 +407,16 @@ def main() -> int:
 
     quote_colons = []
     for symbol, label in FORBIDDEN_PUNCTUATION.items():
-        matches = list(re.finditer(re.escape(symbol), prose))
+        # 连续的破折号（如“——”）算一处，不按字符重复计数。
+        matches = list(re.finditer(re.escape(symbol) + "+", prose))
         if symbol in ("：", ":"):
             hard = []
             for match in matches:
+                before = prose[match.start() - 1 : match.start()]
+                after = prose[match.end() : match.end() + 1]
+                if before.isdigit() and after.isdigit():
+                    # 10:30、1:1、3：2 这类时间和比例属于机器字段，不是提示性冒号。
+                    continue
                 tail = prose[match.end() : match.end() + 2].lstrip()
                 if tail[:1] in ("「", "『", "“", "‘", '"'):
                     quote_colons.append(match)
